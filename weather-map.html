@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>全国天气趋势监视器</title>
 <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+<script src="china-geojson.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height: 100%; }
@@ -671,6 +672,20 @@ function initCharts() {
 }
 
 async function loadPreciseMapData() {
+  // 优先使用嵌入的精确地图数据
+  if (typeof CHINA_GEOJSON !== 'undefined') {
+    document.getElementById('loadProgress').textContent = '正在加载精确地图...';
+    try {
+      echarts.registerMap('china', CHINA_GEOJSON);
+      isMapReady = true;
+      console.log('嵌入地图加载成功');
+      return;
+    } catch(e) {
+      console.log('嵌入地图加载失败', e.message);
+    }
+  }
+  
+  // 备用：尝试从 CDN 加载
   const GEOJSON_URL = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
   
   try {
