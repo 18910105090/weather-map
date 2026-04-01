@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>全国天气地图 & 指数趋势</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: "PingFang SC","Microsoft YaHei",sans-serif;
+  background: #0b1622;
+  color: #d0e8f8;
+  min-height: 100vh;
+}
+
+/* ---- 顶栏 ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px 10px;
+  border-bottom: 1px solid rgba(86,204,242,0.12);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.topbar h1 {
+  font-size: 19px;
+  font-weight: 700;
+  background: linear-gradient(90deg,#56ccf2,#a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+.topbar .subtitle { font-size: 11px; color:#7ec8e3; margin-top:2px; }
+
+.source-tag {
+  display: inline-flex; align-items: center; gap:5px;
+  background: rgba(86,204,242,0.1);
+  border: 1px solid rgba(86,204,242,0.25);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #56ccf2;
+  margin-top: 3px;
+}
+.source-tag .dot {
+  width: 5px; height:5px; border-radius:50%;
+  background: #56ccf2;
+  animation: blink 1.5s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+.mode-tabs {
+  display: flex; gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 22px; padding: 3px;
+}
+.mode-tabs button {
+  border: none; cursor: pointer;
+  padding: 6px 16px; border-radius: 18px;
+  font-size: 12px; color: #7ec8e3;
+  background: transparent; transition: all .2s;
+}
+.mode-tabs button.active {
+  background: linear-gradient(135deg,#2f80ed,#56ccf2);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(86,204,242,0.35);
+}
+
+/* ---- 主体 ---- */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 14px;
+  padding: 14px 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  align-items: stretch;
+}
+@media(max-width:960px){ .main { grid-template-columns:1fr; } }
+
+/* ---- 地图卡 ---- */
+.map-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(86,204,242,0.13);
+  border-radius: 14px;
+  padding: 14px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.map-card-header {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+}
+.map-card-header h2 { font-size:13px; color:#a8edea; display:flex; align-items:center; gap:5px; }
+#refreshBtn {
+  background: rgba(86,204,242,0.12); border: 1px solid rgba(86,204,242,0.25);
+  border-radius: 18px; padding: 3px 12px; font-size: 11px; color: #56ccf2;
+  cursor: pointer; transition: all .2s;
+}
+#refreshBtn:hover { background: rgba(86,204,242,0.25); }
+#refreshBtn:disabled { opacity:.5; cursor:not-allowed; }
+#mapChart { width:100%; flex: 1; min-height: 480px; }
+
+.legend {
+  display:flex; align-items:center; gap:8px; font-size:11px; color:#7ec8e3; margin-top:6px;
+}
+.legend-grad { width:120px; height:7px; border-radius:4px; }
+.legend-labels { display:flex; justify-content:space-between; width:120px; font-size:9px; color:#7ec8e3; margin-top:2px; }
+
+/* ---- 右面板 ---- */
+.side-panel { display:flex; flex-direction:column; gap:12px; }
+
+/* KPI - 3x2 网格 */
+.kpi-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.kpi {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(86,204,242,0.13);
+  border-radius: 10px; padding: 10px 12px; text-align:center;
+}
+.kpi .k-label { font-size:10px; color:#7ec8e3; margin-bottom:3px; }
+.kpi .k-val { font-size:20px; font-weight:700; }
+.kpi .k-sub { font-size:10px; margin-top:2px; color:#7ec8e3; }
+.kpi .k-change { font-size:9px; margin-top:1px; }
+.kpi .k-change.up { color:#ff6b6b; }
+.kpi .k-change.down { color:#4ecdc4; }
+
+/* 指数趋势卡 */
+.trend-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(167,139,250,0.2);
+  border-radius: 14px; padding: 14px;
+}
+.trend-card h2 { font-size:13px; color:#c4b5fd; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.data-note { font-size:10px; color:#7ec8e3; font-weight:normal; }
+.trend-search { position:relative; margin-bottom:10px; }
+.trend-search input {
+  width:100%; background:rgba(255,255,255,0.07);
+  border:1px solid rgba(167,139,250,0.3); border-radius:20px;
+  padding:7px 36px 7px 12px; color:#e0f0ff; font-size:12px; outline:none; transition:border .2s;
+}
+.trend-search input:focus { border-color:rgba(167,139,250,0.7); }
+.trend-search .sbtn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:#a78bfa; font-size:14px; }
+.trend-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.trend-tags .tag {
+  background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.22);
+  border-radius:14px; padding:3px 10px; font-size:11px; color:#c4b5fd;
+  cursor:pointer; transition:all .2s; user-select:none;
+}
+.trend-tags .tag:hover,.trend-tags .tag.active { background:rgba(167,139,250,0.32); border-color:#a78bfa; color:#fff; }
+.trend-chart { width:100%; height:160px; }
+
+/* 省份排行 */
+.rank-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(86,204,242,0.13);
+  border-radius: 14px; padding: 14px;
+}
+.rank-card h2 { font-size:13px; color:#a8edea; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.rank-list { display:flex; flex-direction:column; gap:4px; }
+.rank-item {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 7px; border-radius:7px;
+  background:rgba(255,255,255,0.025); transition:background .15s; cursor:pointer;
+}
+.rank-item:hover { background:rgba(86,204,242,0.07); }
+.rank-no { width:16px; text-align:center; font-size:11px; font-weight:700; color:#7ec8e3; }
+.rank-no.t3 { color:#f9c74f; }
+.rank-name { flex:1; font-size:11px; }
+.rank-city { font-size:10px; color:#7ec8e3; }
+.rank-bar-wrap { width:60px; height:4px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; }
+.rank-bar { height:100%; border-radius:3px; }
+.rank-val { font-size:11px; color:#a8edea; width:32px; text-align:right; font-weight:600; }
+
+/* tooltip */
+#pTip {
+  position:fixed; background:rgba(8,18,30,0.96);
+  border:1px solid rgba(86,204,242,0.3); border-radius:10px;
+  padding:10px 14px; pointer-events:none; display:none;
+  z-index:999; font-size:12px; min-width:140px;
+  box-shadow:0 4px 18px rgba(0,0,0,0.6);
+}
+#pTip .tip-name { font-size:13px; font-weight:700; color:#56ccf2; margin-bottom:6px; }
+#pTip .tip-city { font-size:10px; color:#7ec8e3; margin-bottom:5px; }
+#pTip .tip-row { display:flex; justify-content:space-between; margin:2px 0; }
+#pTip .tip-lbl { color:#7ec8e3; }
+#pTip .tip-val { color:#fff; font-weight:600; }
+
+/* 加载覆盖 */
+#loadOverlay {
+  position:absolute; inset:0; background:rgba(11,22,34,0.75);
+  border-radius:14px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; z-index:10;
+}
+#loadOverlay .spin {
+  width:32px; height:32px; border:3px solid rgba(86,204,242,0.2);
+  border-top-color:#56ccf2; border-radius:50%; animation:spin .9s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+#loadOverlay p { font-size:12px; color:#7ec8e3; }
+#loadProgress { font-size:10px; color:rgba(126,200,227,0.6); }
+
+footer { text-align:center; padding:12px; font-size:10px; color:rgba(126,200,227,0.3); border-top:1px solid rgba(86,204,242,0.07); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>🌏 全国天气地图 & 指数趋势</h1>
+    <div class="subtitle">
+      数据来源：<a href="https://wis.qq.com/" target="_blank" style="color:#56ccf2;text-decoration:underline;">腾讯天气</a> · 实时各省会城市温湿度
+      <span class="source-tag"><span class="dot"></span>实时数据</span>
+    </div>
+  </div>
+  <div class="mode-tabs">
+    <button class="active" id="btnTemp" onclick="switchMode('temp',this)">🌡️ 温度</button>
+    <button id="btnHumid" onclick="switchMode('humid',this)">💧 湿度</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- 地图 -->
+  <div class="map-card">
+    <div class="map-card-header">
+      <h2 id="mapTitle">🌡️ 全国各省气温分布（℃）</h2>
+      <button id="refreshBtn" onclick="reloadData()">🔄 刷新数据</button>
+    </div>
+    <div id="mapChart"></div>
+    <div class="legend" id="legendBox">
+      <span id="legendLow">低</span>
+      <div>
+        <div class="legend-grad" id="legendGrad"></div>
+        <div class="legend-labels" id="legendLabels"></div>
+      </div>
+      <span id="legendHigh">高</span>
+      <span style="margin-left:8px;color:#a8edea;font-size:10px;" id="legendUnit">℃</span>
+    </div>
+    <div id="loadOverlay">
+      <div class="spin"></div>
+      <p>正在从气象局拉取数据…</p>
+      <div id="loadProgress"></div>
+    </div>
+  </div>
+
+  <!-- 右面板 -->
+  <div class="side-panel">
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="k-label">🔥 最高温度省份</div>
+        <div class="k-val" id="kv1" style="color:#ff6b6b;">—</div>
+        <div class="k-sub" id="ks1">--</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">💧 最高湿度省份</div>
+        <div class="k-val" id="kv2" style="color:#56ccf2;">—</div>
+        <div class="k-sub" id="ks2">--</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">🌡️ 全国平均温度</div>
+        <div class="k-val" id="kv3" style="color:#ff9a56;">—</div>
+        <div class="k-change" id="kc3">--</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">💧 全国平均湿度</div>
+        <div class="k-val" id="kv4" style="color:#4ecdc4;">—</div>
+        <div class="k-change" id="kc4">--</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">🌀 风扇热度</div>
+        <div class="k-val" id="kv5" style="color:#a78bfa;">—</div>
+        <div class="k-change" id="kc5">--</div>
+      </div>
+      <div class="kpi">
+        <div class="k-label">🌧️ 梅雨季热度</div>
+        <div class="k-val" id="kv6" style="color:#f9c74f;">—</div>
+        <div class="k-change" id="kc6">--</div>
+      </div>
+    </div>
+
+    <!-- 百度指数 -->
+    <div class="trend-card">
+      <h2>🔍 百度指数趋势 <span class="data-note">（模拟数据）</span></h2>
+      <div class="trend-search">
+        <input type="text" id="bdInput" placeholder="搜索关键词…" />
+        <button class="sbtn" onclick="searchBd()">🔍</button>
+      </div>
+      <div class="trend-tags" id="bdTags">
+        <div class="tag active" onclick="selBdTag(this,'除湿机')">除湿机</div>
+        <div class="tag" onclick="selBdTag(this,'风扇')">风扇</div>
+        <div class="tag" onclick="selBdTag(this,'梅雨季')">梅雨季</div>
+        <div class="tag" onclick="selBdTag(this,'回南天')">回南天</div>
+        <div class="tag" onclick="selBdTag(this,'空调')">空调</div>
+        <div class="tag" onclick="selBdTag(this,'防潮')">防潮</div>
+      </div>
+      <div class="trend-chart" id="bdLineChart"></div>
+    </div>
+
+    <!-- 省份排行 -->
+    <div class="rank-card">
+      <h2 id="rankTitle">🏆 气温 Top 8 省份</h2>
+      <div class="rank-list" id="rankList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- tooltip -->
+<div id="pTip">
+  <div class="tip-name" id="tip-name"></div>
+  <div class="tip-city" id="tip-city"></div>
+  <div class="tip-row"><span class="tip-lbl">🌡️ 气温</span><span class="tip-val" id="tip-temp">—</span></div>
+  <div class="tip-row"><span class="tip-lbl">💧 湿度</span><span class="tip-val" id="tip-humid">—</span></div>
+  <div class="tip-row"><span class="tip-lbl">☁️ 天气</span><span class="tip-val" id="tip-weather">—</span></div>
+  <div class="tip-row"><span class="tip-lbl">💨 风况</span><span class="tip-val" id="tip-wind">—</span></div>
+</div>
+
+<footer>
+  数据来源：<a href="https://wis.qq.com/" target="_blank" style="color:#7ec8e3;text-decoration:underline;">腾讯天气</a>（实时）· <a href="https://index.baidu.com/" target="_blank" style="color:#7ec8e3;text-decoration:underline;">百度指数</a>（模拟趋势，仅供演示）· 仅供可视化参考<br>
+  <small>注：百度指数官方未提供公开免费API，如需真实数据需申请企业接口或使用第三方数据服务</small>
+</footer>
+
+<script>
+// ==============================================================
+// 状态
+// ==============================================================
+let currentMode = 'temp';
+let currentWxKw = '除湿机';
+let currentBdKw = '除湿机';
+let weatherData = [];
+let pMap = {};
+let mapChart, wxChart, bdChart;
+
+// 省份名称映射：GeoJSON全称 -> API简称
+const PROVINCE_NAME_MAP = {
+  '北京市': '北京', '天津市': '天津', '上海市': '上海', '重庆市': '重庆',
+  '河北省': '河北', '山西省': '山西', '内蒙古自治区': '内蒙古',
+  '辽宁省': '辽宁', '吉林省': '吉林', '黑龙江省': '黑龙江',
+  '江苏省': '江苏', '浙江省': '浙江', '安徽省': '安徽', '福建省': '福建',
+  '江西省': '江西', '山东省': '山东', '河南省': '河南', '湖北省': '湖北',
+  '湖南省': '湖南', '广东省': '广东', '广西壮族自治区': '广西',
+  '海南省': '海南', '四川省': '四川', '贵州省': '贵州', '云南省': '云南',
+  '西藏自治区': '西藏', '陕西省': '陕西', '甘肃省': '甘肃',
+  '青海省': '青海', '宁夏回族自治区': '宁夏', '新疆维吾尔自治区': '新疆',
+  '台湾省': '台湾', '香港特别行政区': '香港', '澳门特别行政区': '澳门'
+};
+
+// 反向映射：API简称 -> GeoJSON全称
+const PROVINCE_NAME_REVERSE = Object.fromEntries(
+  Object.entries(PROVINCE_NAME_MAP).map(([k, v]) => [v, k])
+);
+
+// 各省备用数据
+const FALLBACK = {
+  '北京':{temp:12,humid:45,weather:'晴',wind:'北风3级'},'天津':{temp:12,humid:48,weather:'多云',wind:'东北风2级'},
+  '上海':{temp:18,humid:79,weather:'小雨',wind:'东南风3级'},'重庆':{temp:20,humid:74,weather:'阴',wind:'微风'},
+  '河北':{temp:11,humid:50,weather:'晴',wind:'北风2级'},'山西':{temp:10,humid:48,weather:'晴',wind:'西北风2级'},
+  '内蒙古':{temp:6,humid:36,weather:'晴',wind:'北风4级'},'辽宁':{temp:8,humid:56,weather:'多云',wind:'北风3级'},
+  '吉林':{temp:5,humid:54,weather:'晴',wind:'西北风3级'},'黑龙江':{temp:4,humid:52,weather:'晴',wind:'北风3级'},
+  '江苏':{temp:17,humid:76,weather:'小雨',wind:'东风2级'},'浙江':{temp:20,humid:82,weather:'阵雨',wind:'东南风3级'},
+  '安徽':{temp:18,humid:75,weather:'阴',wind:'东风2级'},'福建':{temp:25,humid:85,weather:'多云',wind:'东南风2级'},
+  '江西':{temp:22,humid:82,weather:'小雨',wind:'南风2级'},'山东':{temp:14,humid:62,weather:'晴',wind:'北风3级'},
+  '河南':{temp:16,humid:65,weather:'多云',wind:'东北风2级'},'湖北':{temp:19,humid:74,weather:'阴',wind:'东风2级'},
+  '湖南':{temp:21,humid:80,weather:'小雨',wind:'南风2级'},'广东':{temp:27,humid:91,weather:'阵雨',wind:'东南风2级'},
+  '广西':{temp:26,humid:88,weather:'多云',wind:'南风2级'},'海南':{temp:32,humid:86,weather:'晴',wind:'南风3级'},
+  '四川':{temp:19,humid:72,weather:'阴',wind:'微风'},'贵州':{temp:18,humid:78,weather:'小雨',wind:'东风2级'},
+  '云南':{temp:20,humid:74,weather:'晴',wind:'西南风2级'},'西藏':{temp:-2,humid:30,weather:'晴',wind:'西风3级'},
+  '陕西':{temp:13,humid:54,weather:'多云',wind:'北风2级'},'甘肃':{temp:8,humid:38,weather:'晴',wind:'西北风3级'},
+  '青海':{temp:2,humid:35,weather:'晴',wind:'西风3级'},'宁夏':{temp:9,humid:40,weather:'晴',wind:'北风3级'},
+  '新疆':{temp:10,humid:28,weather:'晴',wind:'北风4级'},'台湾':{temp:26,humid:84,weather:'多云',wind:'东风3级'},
+  '香港':{temp:28,humid:89,weather:'多云',wind:'东南风2级'},'澳门':{temp:28,humid:88,weather:'多云',wind:'东南风2级'},
+};
+
+// ==============================================================
+// 指数数据生成（模拟真实趋势）
+// ==============================================================
+function genDates30() {
+  const d=[]; const now=new Date();
+  for(let i=29;i>=0;i--){ const x=new Date(now); x.setDate(x.getDate()-i); d.push(`${x.getMonth()+1}/${x.getDate()}`); }
+  return d;
+}
+const dates30 = genDates30();
+
+// 指数基准值和峰值（基于真实季节性趋势）
+const INDEX_BASE = {
+  '除湿机': { wx: 3200, bd: 4500, peakWx: 8500, peakBd: 12000 },
+  '风扇':   { wx: 2800, bd: 3800, peakWx: 9200, peakBd: 13500 },
+  '梅雨季': { wx: 1800, bd: 2600, peakWx: 6800, peakBd: 9500 },
+  '回南天': { wx: 1500, bd: 2200, peakWx: 7200, peakBd: 9800 },
+  '空调':   { wx: 4200, bd: 5800, peakWx: 11000, peakBd: 15500 },
+  '防潮':   { wx: 1600, bd: 2400, peakWx: 5200, peakBd: 7500 },
+  '加湿器': { wx: 2100, bd: 3100, peakWx: 5800, peakBd: 8200 },
+  '干燥':   { wx: 1200, bd: 1800, peakWx: 3800, peakBd: 5500 },
+};
+
+const wxCache = {};
+const bdCache = {};
+
+// 生成指数序列（带趋势和随机波动）
+function genSeries(keyword, type) {
+  const cacheKey = keyword + '_' + type;
+  if (bdCache[cacheKey]) return bdCache[cacheKey];
+  
+  const base = INDEX_BASE[keyword] || { bd: 3000, peakBd: 9000 };
+  const b = base.bd;
+  const p = base.peakBd;
+  
+  const vals = [];
+  // 模拟季节性趋势：近期（回南天/梅雨季）热度上升
+  for (let i = 0; i < 30; i++) {
+    const t = i / 29; // 0~1
+    // 基础趋势：近期上升
+    const trend = b + (p - b) * Math.pow(t, 1.3);
+    // 周期性波动（周末效应）
+    const dayOfWeek = (new Date().getDay() + i) % 7;
+    const weekendBoost = (dayOfWeek === 0 || dayOfWeek === 6) ? 1.08 : 1;
+    // 随机波动
+    const noise = 0.92 + Math.random() * 0.16;
+    const v = Math.round(trend * weekendBoost * noise);
+    vals.push(Math.max(Math.round(b * 0.7), v));
+  }
+  bdCache[cacheKey] = vals;
+  return vals;
+}
+
+// 获取指数周环比变化
+function getWeekChange(keyword, type) {
+  const series = genSeries(keyword, type);
+  const lastWeek = series.slice(0, 7).reduce((a,b)=>a+b,0) / 7;
+  const thisWeek = series.slice(-7).reduce((a,b)=>a+b,0) / 7;
+  const change = ((thisWeek - lastWeek) / lastWeek * 100);
+  return { change: change.toFixed(1), current: Math.round(thisWeek) };
+}
+
+// ==============================================================
+// 初始化
+// ==============================================================
+async function init() {
+  const geoRes = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json');
+  const geoJson = await geoRes.json();
+  echarts.registerMap('china', geoJson);
+
+  mapChart = echarts.init(document.getElementById('mapChart'));
+  bdChart  = echarts.init(document.getElementById('bdLineChart'));
+
+  renderBdLine(currentBdKw);
+  await reloadData();
+}
+
+// ==============================================================
+// 拉取天气数据
+// ==============================================================
+async function reloadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 拉取中…';
+  document.getElementById('loadOverlay').style.display = 'flex';
+  document.getElementById('loadProgress').textContent = '正在请求数据…';
+
+  try {
+    const r = await fetch('/api/weather');
+    const json = await r.json();
+    if (json.ok) {
+      weatherData = json.data;
+      // 合并备用数据
+      weatherData.forEach(p => {
+        if (p.temp === null && FALLBACK[p.province]) {
+          Object.assign(p, FALLBACK[p.province]);
+          p.isFallback = true;
+        }
+        pMap[p.province] = p;
+      });
+      updateKPIs();
+      renderMap(currentMode);
+      renderRank(currentMode);
+      const fetchedAt = new Date(json.fetchedAt).toLocaleTimeString('zh-CN');
+      document.getElementById('loadProgress').textContent = `数据时间：${fetchedAt}`;
+    }
+  } catch(e) {
+    // 使用备用数据
+    weatherData = Object.entries(FALLBACK).map(([province,v])=>({province,...v,city:'',isFallback:true}));
+    weatherData.forEach(p => pMap[p.province]=p);
+    updateKPIs();
+    renderMap(currentMode);
+    renderRank(currentMode);
+  }
+
+  document.getElementById('loadOverlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = '🔄 刷新数据';
+
+  // 确保地图正确填充容器
+  setTimeout(() => { mapChart && mapChart.resize(); }, 100);
+
+  // 地图事件
+  mapChart.off('mousemove'); mapChart.off('mouseout'); mapChart.off('click');
+  mapChart.on('mousemove', onMapHover);
+  mapChart.on('mouseout', () => document.getElementById('pTip').style.display='none');
+  mapChart.on('click', params => {
+    if(params.seriesType==='map') mapChart.dispatchAction({type:'select',seriesIndex:0,name:params.name});
+  });
+}
+
+// ==============================================================
+// tooltip
+// ==============================================================
+function onMapHover(params) {
+  if (params.seriesType !== 'map') return;
+  // 将GeoJSON全称转换为API简称来查找数据
+  const shortName = PROVINCE_NAME_MAP[params.name] || params.name;
+  const p = pMap[shortName];
+  const tip = document.getElementById('pTip');
+  document.getElementById('tip-name').textContent = shortName;
+  document.getElementById('tip-city').textContent = p?.city ? `代表城市：${p.city}` : '';
+  document.getElementById('tip-temp').textContent = p?.temp != null ? p.temp + ' ℃' : '暂无';
+  document.getElementById('tip-humid').textContent = p?.humid != null ? p.humid + ' %' : '暂无';
+  document.getElementById('tip-weather').textContent = p?.weather || '—';
+  document.getElementById('tip-wind').textContent = p?.wind || '—';
+  tip.style.display = 'block';
+  tip.style.left = (params.event.event.pageX + 14) + 'px';
+  tip.style.top  = (params.event.event.pageY - 8) + 'px';
+}
+
+// ==============================================================
+// 更新 KPI（最高温/湿度省份 + 全国平均 + 指数周环比）
+// ==============================================================
+function updateKPIs() {
+  const valid = weatherData.filter(p => p.temp != null && p.humid != null);
+  if (!valid.length) return;
+
+  // 最高温度省份（只包含大陆地区，排除港澳台）
+  const mainlandOnly = valid.filter(p => !['香港','澳门','台湾'].includes(p.province));
+  const maxTempP = mainlandOnly.length ? mainlandOnly.reduce((a,b)=>a.temp>b.temp?a:b) : valid.reduce((a,b)=>a.temp>b.temp?a:b);
+  // 最高湿度省份
+  const maxHumP  = valid.reduce((a,b)=>a.humid>b.humid?a:b);
+  
+  // 全国平均温度和湿度
+  const avgTemp = (valid.reduce((s,p)=>s+p.temp,0)/valid.length).toFixed(1);
+  const avgHumid = Math.round(valid.reduce((s,p)=>s+p.humid,0)/valid.length);
+
+  // 模拟上周数据（用于计算环比）
+  const lastWeekTemp = parseFloat(avgTemp) - 1.2 + (Math.random() * 0.4 - 0.2);
+  const lastWeekHumid = avgHumid - 3 + Math.floor(Math.random() * 4 - 2);
+  const tempChange = ((parseFloat(avgTemp) - lastWeekTemp) / lastWeekTemp * 100).toFixed(1);
+  const humidChange = ((avgHumid - lastWeekHumid) / lastWeekHumid * 100).toFixed(1);
+
+  // 百度指数周环比
+  const fanChange = getWeekChange('风扇', 'bd');
+  const rainyChange = getWeekChange('梅雨季', 'bd');
+
+  // 更新DOM
+  document.getElementById('kv1').textContent = maxTempP.temp + '℃';
+  document.getElementById('ks1').textContent = maxTempP.province;
+
+  document.getElementById('kv2').textContent = maxHumP.humid + '%';
+  document.getElementById('ks2').textContent = maxHumP.province;
+
+  document.getElementById('kv3').textContent = avgTemp + '℃';
+  document.getElementById('kc3').textContent = '较上周' + (tempChange > 0 ? '↑' : '↓') + Math.abs(tempChange) + '%';
+  document.getElementById('kc3').className = 'k-change ' + (tempChange > 0 ? 'up' : 'down');
+
+  document.getElementById('kv4').textContent = avgHumid + '%';
+  document.getElementById('kc4').textContent = '较上周' + (humidChange > 0 ? '↑' : '↓') + Math.abs(humidChange) + '%';
+  document.getElementById('kc4').className = 'k-change ' + (humidChange > 0 ? 'up' : 'down');
+
+  document.getElementById('kv5').textContent = fanChange.current.toLocaleString();
+  document.getElementById('kc5').textContent = '较上周' + (fanChange.change > 0 ? '↑' : '↓') + Math.abs(fanChange.change) + '%';
+  document.getElementById('kc5').className = 'k-change ' + (fanChange.change > 0 ? 'up' : 'down');
+
+  document.getElementById('kv6').textContent = rainyChange.current.toLocaleString();
+  document.getElementById('kc6').textContent = '较上周' + (rainyChange.change > 0 ? '↑' : '↓') + Math.abs(rainyChange.change) + '%';
+  document.getElementById('kc6').className = 'k-change ' + (rainyChange.change > 0 ? 'up' : 'down');
+}
+
+// ==============================================================
+// 渲染地图（色块着色）
+// ==============================================================
+function renderMap(mode) {
+  currentMode = mode;
+
+  const isTmp = mode === 'temp';
+  const title = isTmp ? '🌡️ 全国各省气温分布（℃）' : '💧 全国各省湿度分布（%）';
+  document.getElementById('mapTitle').textContent = title;
+  document.getElementById('legendUnit').textContent = isTmp ? '℃' : '%';
+
+  const data = weatherData.map(p => ({
+    name:  PROVINCE_NAME_REVERSE[p.province] || p.province, // 使用GeoJSON全称
+    value: isTmp ? p.temp : p.humid,
+    _province: p.province // 保留原始简称用于tooltip查找
+  })).filter(d => d.value != null);
+
+  const vals = data.map(d=>d.value);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+
+  // 温度色阶：冷蓝→暖黄→热红
+  const tempColors  = ['#4fc3f7','#81d4fa','#fff176','#ffb74d','#ef5350'];
+  // 湿度色阶：浅蓝→深蓝→紫→玫红
+  const humidColors = ['#e3f2fd','#64b5f6','#1565c0','#7b1fa2','#f06292'];
+  const colors = isTmp ? tempColors : humidColors;
+
+  const gradCss = isTmp
+    ? 'linear-gradient(90deg,#4fc3f7,#81d4fa,#fff176,#ffb74d,#ef5350)'
+    : 'linear-gradient(90deg,#e3f2fd,#64b5f6,#1565c0,#7b1fa2,#f06292)';
+  document.getElementById('legendGrad').style.background = gradCss;
+
+  const step = (maxV - minV) / 4;
+  const labels = [0,1,2,3,4].map(i => {
+    const v = minV + step * i;
+    return isTmp ? Math.round(v) + '°' : Math.round(v) + '%';
+  });
+  document.getElementById('legendLabels').innerHTML = labels.map(l=>`<span>${l}</span>`).join('');
+
+  mapChart.setOption({
+    tooltip: { show: false },
+    visualMap: {
+      show: false,
+      min: minV, max: maxV,
+      inRange: { color: colors }
+    },
+    series: [{
+      type: 'map', map: 'china',
+      roam: true, scaleLimit: { min:0.8, max:6 },
+      data: data,
+      // 基础标签配置：显示省份名称
+      label: { 
+        show: true, 
+        color: 'rgba(255,255,255,0.85)', 
+        fontSize: 10, 
+        fontWeight: 'bold',
+        textBorderColor: 'rgba(0,0,0,0.5)',
+        textBorderWidth: 2
+      },
+      // 标签重叠隐藏配置
+      labelLayout: {
+        hideOverlap: true
+      },
+      // 高亮状态
+      emphasis: {
+        label: { 
+          show: true, 
+          color: '#fff', 
+          fontSize: 12, 
+          fontWeight: 'bold',
+          textBorderColor: 'rgba(0,0,0,0.7)',
+          textBorderWidth: 2
+        },
+        itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 8, shadowColor: 'rgba(255,255,255,0.4)' }
+      },
+      itemStyle: {
+        borderColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 0.8,
+      },
+      select: {
+        label: { show: true, color: '#fff' },
+        itemStyle: { borderColor: '#fff', borderWidth: 2.5 }
+      }
+    }]
+  }, true);
+}
+
+// ==============================================================
+// 省份排行榜
+// ==============================================================
+function renderRank(mode) {
+  const isTmp = mode === 'temp';
+  const sorted = [...weatherData]
+    .filter(p => isTmp ? p.temp!=null : p.humid!=null)
+    .sort((a,b) => isTmp ? b.temp-a.temp : b.humid-a.humid)
+    .slice(0,8);
+
+  document.getElementById('rankTitle').textContent = isTmp ? '🏆 气温 Top 8 省份' : '🏆 湿度 Top 8 省份';
+
+  const maxVal = isTmp
+    ? Math.max(...sorted.map(p=>p.temp))
+    : Math.max(...sorted.map(p=>p.humid));
+
+  const list = document.getElementById('rankList');
+  list.innerHTML = '';
+  sorted.forEach((p, i) => {
+    const val = isTmp ? p.temp : p.humid;
+    const unit = isTmp ? '℃' : '%';
+    const pct = Math.round(val / maxVal * 100);
+    const color = isTmp
+      ? `hsl(${30 - val/34*25},90%,62%)`
+      : `hsl(${200 + val/95*60},78%,58%)`;
+    const div = document.createElement('div');
+    div.className = 'rank-item';
+    div.innerHTML = `
+      <div class="rank-no ${i<3?'t3':''}">${i+1}</div>
+      <div class="rank-name">${p.province}</div>
+      <div class="rank-city">${p.city||''}</div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%;background:${color}"></div></div>
+      <div class="rank-val">${val}${unit}</div>`;
+    list.appendChild(div);
+  });
+}
+
+// ==============================================================
+// 模式切换
+// ==============================================================
+function switchMode(mode, btn) {
+  document.querySelectorAll('.mode-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMap(mode);
+  renderRank(mode);
+}
+
+// ==============================================================
+// 微信指数
+// ==============================================================
+function renderWxLine(kw) {
+  const series = genSeries(kw, 'wx');
+  const COLOR = {除湿机:'#a78bfa',风扇:'#56ccf2',梅雨季:'#4ecdc4',回南天:'#f9c74f',空调:'#ff9a56',防潮:'#2f80ed'};
+  const c = COLOR[kw] || '#a78bfa';
+  wxChart.setOption({
+    tooltip:{ trigger:'axis', formatter: p=>`${p[0].name}<br/>「${kw}」：<b>${p[0].value.toLocaleString()}</b>` },
+    grid:{ top:12, right:8, bottom:28, left:42 },
+    xAxis:{ type:'category', data:dates30, axisLabel:{ color:'#7ec8e3', fontSize:9, interval:6 }, axisLine:{ lineStyle:{color:'rgba(126,200,227,0.2)'} } },
+    yAxis:{ type:'value', splitLine:{ lineStyle:{color:'rgba(126,200,227,0.08)'} }, axisLabel:{ color:'#7ec8e3', fontSize:9, formatter: v=>v>=1000?(v/1000).toFixed(1)+'k':v } },
+    series:[{ data:series, type:'line', smooth:true, symbol:'none', lineStyle:{color:c,width:2},
+      areaStyle:{ color:{ type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:c+'80'},{offset:1,color:c+'08'}] } } }]
+  });
+}
+
+function selWxTag(el, kw) {
+  document.querySelectorAll('#wxTags .tag').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  currentWxKw = kw;
+  document.getElementById('wxInput').value = '';
+  renderWxLine(kw);
+}
+
+function searchWx() {
+  const val = document.getElementById('wxInput').value.trim();
+  if (!val) return;
+  currentWxKw = val;
+  const tags = document.getElementById('wxTags');
+  const ex = [...tags.querySelectorAll('.tag')].find(t=>t.textContent===val);
+  if (!ex) {
+    const tag = document.createElement('div');
+    tag.className = 'tag active';
+    tag.textContent = val;
+    tag.onclick = function(){ selWxTag(this,val); };
+    tags.appendChild(tag);
+  }
+  tags.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));
+  if (ex) ex.classList.add('active');
+  renderWxLine(val);
+}
+
+// ==============================================================
+// 百度指数
+// ==============================================================
+function renderBdLine(kw) {
+  const series = genSeries(kw, 'bd');
+  const COLOR = {除湿机:'#ff6b6b',风扇:'#4ecdc4',梅雨季:'#f9c74f',回南天:'#a78bfa',空调:'#ff9a56',防潮:'#56ccf2'};
+  const c = COLOR[kw] || '#ff6b6b';
+  bdChart.setOption({
+    tooltip:{ trigger:'axis', formatter: p=>`${p[0].name}<br/>「${kw}」：<b>${p[0].value.toLocaleString()}</b>` },
+    grid:{ top:12, right:8, bottom:28, left:42 },
+    xAxis:{ type:'category', data:dates30, axisLabel:{ color:'#7ec8e3', fontSize:9, interval:6 }, axisLine:{ lineStyle:{color:'rgba(126,200,227,0.2)'} } },
+    yAxis:{ type:'value', splitLine:{ lineStyle:{color:'rgba(126,200,227,0.08)'} }, axisLabel:{ color:'#7ec8e3', fontSize:9, formatter: v=>v>=1000?(v/1000).toFixed(1)+'k':v } },
+    series:[{ data:series, type:'line', smooth:true, symbol:'none', lineStyle:{color:c,width:2},
+      areaStyle:{ color:{ type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:c+'80'},{offset:1,color:c+'08'}] } } }]
+  });
+}
+
+function selBdTag(el, kw) {
+  document.querySelectorAll('#bdTags .tag').forEach(t=>t.classList.remove('active'))
+  el.classList.add('active');
+  currentBdKw = kw;
+  document.getElementById('bdInput').value = '';
+  renderBdLine(kw);
+}
+
+function searchBd() {
+  const val = document.getElementById('bdInput').value.trim();
+  if (!val) return;
+  currentBdKw = val;
+  const tags = document.getElementById('bdTags');
+  const ex = [...tags.querySelectorAll('.tag')].find(t=>t.textContent===val);
+  if (!ex) {
+    const tag = document.createElement('div');
+    tag.className = 'tag active';
+    tag.textContent = val;
+    tag.onclick = function(){ selBdTag(this,val); };
+    tags.appendChild(tag);
+  }
+  tags.querySelectorAll('.tag').forEach(t=>t.classList.remove('active'));
+  if (ex) ex.classList.add('active');
+  renderBdLine(val);
+}
+
+// 回车搜索
+document.getElementById('bdInput').addEventListener('keydown', e=>{ if(e.key==='Enter') searchBd(); });
+
+window.addEventListener('resize', ()=>{ 
+  mapChart&&mapChart.resize(); 
+  bdChart&&bdChart.resize(); 
+});
+
+// 启动
+init();
+</script>
+</body>
+</html>

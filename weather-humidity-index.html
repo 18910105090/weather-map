@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>天气 & 除湿机微信指数</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+      min-height: 100vh;
+      color: #e0f0ff;
+    }
+
+    header {
+      text-align: center;
+      padding: 36px 20px 10px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(90deg, #56ccf2, #2f80ed, #a8edea);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #7ec8e3;
+      opacity: 0.8;
+    }
+
+    .kpi-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 28px 20px 10px;
+      flex-wrap: wrap;
+    }
+
+    .kpi-card {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(86,204,242,0.2);
+      border-radius: 16px;
+      padding: 20px 32px;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      min-width: 140px;
+    }
+
+    .kpi-card .label {
+      font-size: 12px;
+      color: #7ec8e3;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    .kpi-card .value {
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .kpi-card .unit {
+      font-size: 13px;
+      color: #7ec8e3;
+      margin-left: 2px;
+    }
+
+    .kpi-card .change {
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .up { color: #ff6b6b; }
+    .down { color: #4ecdc4; }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 20px 30px 10px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+      .charts-grid { grid-template-columns: 1fr; padding: 10px 12px; }
+    }
+
+    .chart-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(86,204,242,0.15);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(8px);
+    }
+
+    .chart-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .chart-card h2 {
+      font-size: 15px;
+      color: #a8edea;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-card h2 .icon {
+      font-size: 18px;
+    }
+
+    .chart-box {
+      width: 100%;
+      height: 280px;
+    }
+
+    .wide .chart-box {
+      height: 320px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 11px;
+      color: rgba(126,200,227,0.4);
+    }
+
+    /* 小标签 */
+    .tag {
+      display: inline-block;
+      background: rgba(86,204,242,0.15);
+      border: 1px solid rgba(86,204,242,0.3);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 11px;
+      color: #56ccf2;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌦️ 天气变化 &amp; 微信热度监控</h1>
+  <p>近30天温度 / 湿度走势 · 微信指数「除湿机」搜索热度分析</p>
+</header>
+
+<!-- KPI 卡片 -->
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="label">当前气温</div>
+    <div class="value" style="color:#ff9a56;">26<span class="unit">℃</span></div>
+    <div class="change up">↑ 较昨日 +2℃</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">当前湿度</div>
+    <div class="value" style="color:#56ccf2;">83<span class="unit">%</span></div>
+    <div class="change up">↑ 较昨日 +5%</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">除湿机微信指数</div>
+    <div class="value" style="color:#a78bfa;">4,821</div>
+    <div class="change up">↑ 较上周 +18%</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">体感不适指数</div>
+    <div class="value" style="color:#f9c74f;">偏高</div>
+    <div class="change up" style="color:#ff6b6b;">⚠ 建议开除湿</div>
+  </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="charts-grid">
+
+  <!-- 温度折线图 -->
+  <div class="chart-card">
+    <h2><span class="icon">🌡️</span>近30天气温变化 <span class="tag">日均°C</span></h2>
+    <div id="tempChart" class="chart-box"></div>
+  </div>
+
+  <!-- 湿度折线图 -->
+  <div class="chart-card">
+    <h2><span class="icon">💧</span>近30天湿度变化 <span class="tag">日均%</span></h2>
+    <div id="humidChart" class="chart-box"></div>
+  </div>
+
+  <!-- 除湿机微信指数 宽图 -->
+  <div class="chart-card wide">
+    <h2><span class="icon">📱</span>微信指数「除湿机」热度走势 <span class="tag">30天</span></h2>
+    <div id="wxIndexChart" class="chart-box"></div>
+  </div>
+
+  <!-- 湿度 vs 微信指数相关性 散点图 -->
+  <div class="chart-card wide">
+    <h2><span class="icon">🔗</span>湿度 vs 除湿机热度 相关性分析 <span class="tag">散点图</span></h2>
+    <div id="scatterChart" class="chart-box"></div>
+  </div>
+
+</div>
+
+<footer>数据来源：模拟气象数据 + 微信指数（除湿机） · 仅供展示参考</footer>
+
+<script>
+// ===== 生成近30天日期 =====
+function genDates(n) {
+  const dates = [];
+  const now = new Date('2026-04-01');
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    dates.push(`${d.getMonth()+1}/${d.getDate()}`);
+  }
+  return dates;
+}
+
+const dates = genDates(30);
+
+// ===== 模拟温度数据（广州/华南春季回暖）=====
+const tempData = [
+  18, 19, 17, 20, 22, 21, 23, 24, 22, 23,
+  25, 24, 26, 25, 27, 26, 28, 27, 26, 28,
+  29, 27, 28, 29, 30, 28, 27, 29, 27, 26
+];
+
+// ===== 模拟湿度数据（回南天/梅雨季）=====
+const humidData = [
+  65, 68, 72, 75, 78, 74, 80, 82, 79, 83,
+  85, 82, 87, 85, 88, 86, 90, 88, 84, 87,
+  89, 91, 88, 86, 83, 85, 87, 89, 84, 83
+];
+
+// ===== 微信指数（与湿度正相关，加随机波动）=====
+const wxIndex = humidData.map((h, i) => {
+  const base = Math.round((h - 60) * 120 + tempData[i] * 30 + 800);
+  const noise = Math.round((Math.random() - 0.5) * 400);
+  return Math.max(800, base + noise);
+});
+
+// ===== 颜色工具 =====
+const gradientArea = (chart, color1, color2) => ({
+  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+  colorStops: [
+    { offset: 0, color: color1 },
+    { offset: 1, color: color2 }
+  ]
+});
+
+// ===== 温度图 =====
+const tempChart = echarts.init(document.getElementById('tempChart'));
+tempChart.setOption({
+  tooltip: { trigger: 'axis', formatter: (p) => `${p[0].name}<br/>气温：${p[0].value}℃` },
+  grid: { top: 20, right: 20, bottom: 40, left: 46 },
+  xAxis: {
+    type: 'category', data: dates,
+    axisLine: { lineStyle: { color: 'rgba(126,200,227,0.3)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11,
+      interval: 4 }
+  },
+  yAxis: {
+    type: 'value', name: '℃', min: 14, max: 34,
+    nameTextStyle: { color: '#7ec8e3' },
+    splitLine: { lineStyle: { color: 'rgba(126,200,227,0.1)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11 }
+  },
+  series: [{
+    data: tempData, type: 'line', smooth: true,
+    symbol: 'circle', symbolSize: 5,
+    lineStyle: { color: '#ff9a56', width: 2.5 },
+    itemStyle: { color: '#ff9a56' },
+    areaStyle: {
+      color: gradientArea(tempChart, 'rgba(255,154,86,0.4)', 'rgba(255,154,86,0.02)')
+    },
+    markPoint: {
+      data: [
+        { type: 'max', name: '最高', label: { color: '#ff6b6b' } },
+        { type: 'min', name: '最低', label: { color: '#4ecdc4' } }
+      ]
+    }
+  }]
+});
+
+// ===== 湿度图 =====
+const humidChart = echarts.init(document.getElementById('humidChart'));
+humidChart.setOption({
+  tooltip: { trigger: 'axis', formatter: (p) => `${p[0].name}<br/>湿度：${p[0].value}%` },
+  grid: { top: 20, right: 20, bottom: 40, left: 46 },
+  xAxis: {
+    type: 'category', data: dates,
+    axisLine: { lineStyle: { color: 'rgba(126,200,227,0.3)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11, interval: 4 }
+  },
+  yAxis: {
+    type: 'value', name: '%', min: 58, max: 95,
+    nameTextStyle: { color: '#7ec8e3' },
+    splitLine: { lineStyle: { color: 'rgba(126,200,227,0.1)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11 }
+  },
+  visualMap: {
+    show: false, seriesIndex: 0,
+    min: 60, max: 92,
+    inRange: { color: ['#56ccf2', '#2f80ed', '#a78bfa', '#f72585'] }
+  },
+  series: [{
+    data: humidData, type: 'line', smooth: true,
+    symbol: 'circle', symbolSize: 5,
+    lineStyle: { width: 2.5 },
+    areaStyle: {
+      color: gradientArea(humidChart, 'rgba(86,204,242,0.4)', 'rgba(47,128,237,0.03)')
+    },
+    markLine: {
+      data: [{ yAxis: 80, name: '高湿警戒线' }],
+      lineStyle: { color: '#f9c74f', type: 'dashed', width: 1.5 },
+      label: { formatter: '高湿警戒 80%', color: '#f9c74f', fontSize: 11 }
+    }
+  }]
+});
+
+// ===== 微信指数图 =====
+const wxChart = echarts.init(document.getElementById('wxIndexChart'));
+wxChart.setOption({
+  tooltip: {
+    trigger: 'axis',
+    formatter: (p) => `${p[0].name}<br/>微信指数：<b>${p[0].value.toLocaleString()}</b>`
+  },
+  grid: { top: 30, right: 30, bottom: 40, left: 64 },
+  xAxis: {
+    type: 'category', data: dates,
+    axisLine: { lineStyle: { color: 'rgba(126,200,227,0.3)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11, interval: 2 }
+  },
+  yAxis: {
+    type: 'value', name: '热度指数',
+    nameTextStyle: { color: '#7ec8e3' },
+    splitLine: { lineStyle: { color: 'rgba(126,200,227,0.1)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11,
+      formatter: (v) => v >= 1000 ? (v/1000).toFixed(1)+'k' : v }
+  },
+  series: [{
+    data: wxIndex,
+    type: 'bar',
+    barMaxWidth: 20,
+    itemStyle: {
+      color: (params) => {
+        const v = params.value;
+        if (v >= 4500) return '#f72585';
+        if (v >= 3500) return '#a78bfa';
+        if (v >= 2500) return '#2f80ed';
+        return '#56ccf2';
+      },
+      borderRadius: [4, 4, 0, 0]
+    },
+    emphasis: {
+      itemStyle: { shadowBlur: 10, shadowColor: 'rgba(167,139,250,0.6)' }
+    }
+  }],
+  dataZoom: [{
+    type: 'inside', start: 0, end: 100
+  }]
+});
+
+// ===== 散点图：湿度 vs 微信指数 =====
+const scatterData = humidData.map((h, i) => [h, wxIndex[i], dates[i]]);
+
+const scatterChart = echarts.init(document.getElementById('scatterChart'));
+scatterChart.setOption({
+  tooltip: {
+    formatter: (p) => `日期：${p.data[2]}<br/>湿度：${p.data[0]}%<br/>除湿机热度：${p.data[1].toLocaleString()}`
+  },
+  grid: { top: 30, right: 30, bottom: 50, left: 64 },
+  xAxis: {
+    type: 'value', name: '湿度 (%)', min: 60, max: 95,
+    nameLocation: 'end',
+    nameTextStyle: { color: '#7ec8e3' },
+    splitLine: { lineStyle: { color: 'rgba(126,200,227,0.1)' } },
+    axisLabel: { color: '#7ec8e3', formatter: '{value}%' }
+  },
+  yAxis: {
+    type: 'value', name: '微信热度指数',
+    nameTextStyle: { color: '#7ec8e3' },
+    splitLine: { lineStyle: { color: 'rgba(126,200,227,0.1)' } },
+    axisLabel: { color: '#7ec8e3', fontSize: 11,
+      formatter: (v) => v >= 1000 ? (v/1000).toFixed(1)+'k' : v }
+  },
+  visualMap: {
+    show: true, dimension: 0,
+    min: 62, max: 92,
+    text: ['高湿', '低湿'],
+    textStyle: { color: '#7ec8e3', fontSize: 11 },
+    inRange: { color: ['#56ccf2', '#a78bfa', '#f72585'] },
+    orient: 'horizontal',
+    left: 'center', bottom: 0
+  },
+  series: [{
+    type: 'scatter',
+    data: scatterData,
+    symbolSize: 12,
+    emphasis: { scale: true, itemStyle: { shadowBlur: 14, shadowColor: 'rgba(167,139,250,0.8)' } }
+  }, {
+    // 趋势线（手动拟合）
+    type: 'line', smooth: true,
+    data: [[62, 1000],[70, 1800],[78, 2800],[85, 3800],[92, 5200]],
+    lineStyle: { color: 'rgba(249,199,79,0.6)', width: 2, type: 'dashed' },
+    symbol: 'none',
+    tooltip: { show: false }
+  }]
+});
+
+// ===== 响应式 resize =====
+window.addEventListener('resize', () => {
+  tempChart.resize();
+  humidChart.resize();
+  wxChart.resize();
+  scatterChart.resize();
+});
+</script>
+</body>
+</html>

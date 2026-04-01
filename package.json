@@ -1,0 +1,11 @@
+{
+  "name": "weather-map",
+  "version": "1.0.0",
+  "description": "全国天气地图与指数趋势",
+  "scripts": {
+    "start": "node weather-proxy.js"
+  },
+  "dependencies": {
+    "http-proxy-middleware": "^2.0.6"
+  }
+}
