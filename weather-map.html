@@ -629,19 +629,22 @@ function getWeekChange(keyword) {
 // ==============================================================
 // 初始化
 // ==============================================================
-function init() {
-  initWithFallback();
-  loadPreciseMapData();
+async function init() {
+  // 先显示加载状态
+  document.getElementById('loadProgress').textContent = '正在加载地图...';
+  
+  // 尝试加载精确地图
+  await loadPreciseMapData();
+  
+  // 初始化图表
+  initCharts();
 }
 
-function initWithFallback() {
-  document.getElementById('loadProgress').textContent = '使用备用地图数据';
+function initCharts() {
+  document.getElementById('loadProgress').textContent = '正在渲染数据...';
   
   mapChart = echarts.init(document.getElementById('mapChart'));
   bdChart = echarts.init(document.getElementById('bdLineChart'));
-  
-  echarts.registerMap('china', CHINA_GEOJSON_FALLBACK);
-  isMapReady = true;
   
   // 使用校对后的真实数据
   weatherData = Object.entries(REAL_WEATHER_DATA).map(([province,v])=>({province,...v}));
@@ -655,7 +658,7 @@ function initWithFallback() {
   
   setTimeout(() => {
     hideLoading();
-  }, 500);
+  }, 300);
   
   window.addEventListener('resize', ()=>{ 
     mapChart&&mapChart.resize(); 
@@ -668,29 +671,21 @@ async function loadPreciseMapData() {
   const GEOJSON_URL = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
   
   try {
-    const cached = localStorage.getItem('chinaGeoJson');
-    const cacheTime = localStorage.getItem('chinaGeoJsonTime');
-    const now = Date.now();
+    document.getElementById('loadProgress').textContent = '正在加载精确地图...';
     
-    let geoJson;
-    if (cached && cacheTime && (now - parseInt(cacheTime)) < 24 * 60 * 60 * 1000) {
-      geoJson = JSON.parse(cached);
-    } else {
-      const geoRes = await fetch(GEOJSON_URL);
-      if (!geoRes.ok) throw new Error('Network error');
-      geoJson = await geoRes.json();
-      
-      try {
-        localStorage.setItem('chinaGeoJson', JSON.stringify(geoJson));
-        localStorage.setItem('chinaGeoJsonTime', now.toString());
-      } catch(e) {}
-    }
+    const geoRes = await fetch(GEOJSON_URL);
+    if (!geoRes.ok) throw new Error('Network error');
+    const geoJson = await geoRes.json();
     
     echarts.registerMap('china', geoJson);
-    renderMap(currentMode);
+    isMapReady = true;
+    console.log('精确地图加载成功');
     
   } catch(e) {
-    console.log('精确地图加载失败，继续使用备用地图');
+    console.log('精确地图加载失败，使用备用地图', e.message);
+    document.getElementById('loadProgress').textContent = '使用备用地图数据';
+    echarts.registerMap('china', CHINA_GEOJSON_FALLBACK);
+    isMapReady = true;
   }
 }
 
